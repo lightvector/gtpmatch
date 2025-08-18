@@ -23,12 +23,14 @@ try:
 except ImportError:
     sgfmill = None
 
-
 # GTP coordinate system: letters A-Z (skipping I), then AA, AB, AC, etc.
 GTP_LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
 
 
-def gtp_vertex_to_sgf_point(vertex: str, board_size: int) -> tuple[int, int] | None:
+def gtp_vertex_to_sgf_point(
+    vertex: str,
+    board_size: int,
+) -> tuple[int, int] | None:
     """
     Convert GTP vertex format to SGF point format.
 
@@ -103,7 +105,10 @@ def _parse_gtp_columns(col_letters: str) -> int:
         raise ValueError(f"GTP column format not supported (max 2 letters): {col_letters}")
 
 
-def sgf_point_to_gtp_vertex(point: tuple[int, int] | None, board_size: int) -> str:
+def sgf_point_to_gtp_vertex(
+    point: tuple[int, int] | None,
+    board_size: int,
+) -> str:
     """
     Convert SGF point format to GTP vertex format.
 
@@ -175,12 +180,19 @@ class GTPError(Exception):
 
 class Bot:
     """A running Go bot that communicates via GTP."""
-
-    def __init__(self, name: str, process: subprocess.Popen):
+    def __init__(
+        self,
+        name: str,
+        process: subprocess.Popen,
+    ):
         self.name = name
         self._process = process
 
-    def send_command(self, command: str, raise_on_failure: bool = True) -> str:
+    def send_command(
+        self,
+        command: str,
+        raise_on_failure: bool = True,
+    ) -> str:
         """
         Send a GTP command to the bot and return the response.
 
@@ -243,7 +255,10 @@ class Bot:
 
 
 @contextmanager
-def launch_bot(name: str, command: str | list[str]) -> Iterator[Bot]:
+def launch_bot(
+    name: str,
+    command: str | list[str],
+) -> Iterator[Bot]:
     """
     Launch a GTP bot as a context manager.
 
@@ -341,7 +356,10 @@ class FinishedGame:
 
         return game
 
-    def save_sgf(self, filepath: str | Path) -> None:
+    def save_sgf(
+        self,
+        filepath: str | Path,
+    ) -> None:
         """
         Save the game to an SGF file.
 
@@ -422,7 +440,11 @@ def _resolve_score_disagreement(black_score: str, white_score: str) -> tuple[Gam
         return GameResult.UNKNOWN, None, "?"
 
 
-def _validate_game_parameters(board_size: int, komi: float, max_moves: int | None) -> None:
+def _validate_game_parameters(
+    board_size: int,
+    komi: float,
+    max_moves: int | None,
+) -> None:
     """Validate game parameters and raise ValueError if invalid."""
     if not isinstance(board_size, int) or board_size < 1 or board_size > 99:
         raise ValueError(f"board_size must be an integer between 1 and 99, got {board_size}")
@@ -434,7 +456,12 @@ def _validate_game_parameters(board_size: int, komi: float, max_moves: int | Non
         raise ValueError(f"max_moves must be a positive integer or None, got {max_moves}")
 
 
-def _setup_bots(black_bot: Bot, white_bot: Bot, board_size: int, komi: float) -> None:
+def _setup_bots(
+    black_bot: Bot,
+    white_bot: Bot,
+    board_size: int,
+    komi: float,
+) -> None:
     """Set up both bots for the game."""
     for bot in [black_bot, white_bot]:
         bot.send_command("clear_board")
@@ -442,7 +469,10 @@ def _setup_bots(black_bot: Bot, white_bot: Bot, board_size: int, komi: float) ->
         bot.send_command(f"komi {komi}")
 
 
-def _get_bot_score(bot: Bot, bot_name: str) -> str | None:
+def _get_bot_score(
+    bot: Bot,
+    bot_name: str,
+) -> str | None:
     """
     Get final score from a bot if it supports scoring.
 
@@ -460,7 +490,10 @@ def _get_bot_score(bot: Bot, bot_name: str) -> str | None:
     return None
 
 
-def _determine_final_result(black_bot: Bot, white_bot: Bot) -> tuple[GameResult, str | None, str | None]:
+def _determine_final_result(
+    black_bot: Bot,
+    white_bot: Bot,
+) -> tuple[GameResult, str | None, str | None]:
     """
     Determine final game result by asking both bots for scores.
 
@@ -509,7 +542,13 @@ def _determine_final_result(black_bot: Bot, white_bot: Bot) -> tuple[GameResult,
     return GameResult.UNKNOWN, None, None
 
 
-def play_game(black_bot: Bot, white_bot: Bot, board_size: int = 19, komi: float = 6.5, max_moves: int | None = None) -> FinishedGame:
+def play_game(
+    black_bot: Bot,
+    white_bot: Bot,
+    board_size: int = 19,
+    komi: float = 6.5,
+    max_moves: int | None = None,
+) -> FinishedGame:
     """
     Play a game between two bots.
 
