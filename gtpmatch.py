@@ -213,6 +213,7 @@ class Bot:
         self._process.stdin.write(cmd_line.encode('utf-8'))
         self._process.stdin.flush()
         response_lines = []
+        status = None
         while True:
             line = self._process.stdout.readline().decode('utf-8').rstrip('\r\n')
             if line == "":
@@ -235,7 +236,7 @@ class Bot:
 
         response = '\n'.join(response_lines)
 
-        if status == '?' and raise_on_failure:
+        if (status is None or status == '?') and raise_on_failure:
             raise GTPError(f"Command '{command}' failed: {response}")
 
         return response
@@ -468,11 +469,11 @@ def _resolve_score_disagreement(black_score: str, white_score: str) -> tuple[Gam
 def _is_valid_move(vertex: str, board_size: int) -> bool:
     """
     Check if a move vertex is valid.
-    
+
     Args:
         vertex: GTP vertex format like "D4", "pass", or "resign"
         board_size: Size of the board
-        
+
     Returns:
         True if the move is valid (can be converted to SGF or is pass/resign)
     """
