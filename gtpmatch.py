@@ -314,6 +314,7 @@ class FinishedGame:
     result: GameResult
     winner_name: str | None
     score: str | None = None  # e.g., "B+3.5", "W+R", "B+", etc.
+    setup_moves: list[Move] = None  # Handicap or starting position moves
 
     def _create_sgf_game(self) -> 'sgfmill.sgf.Sgf_game':
         """Create and populate an SGF game object."""
@@ -342,13 +343,37 @@ class FinishedGame:
             root.set("RE", "?")
         # For UNFINISHED games, don't set RE tag at all
 
-        # Add moves
-        for move in self.moves:
-            try:
-                point = gtp_vertex_to_sgf_point(move.vertex, self.board_size)
-            except ValueError:
-                continue  # Skip invalid moves
+        # Add setup stones to root node if any
+        if self.setup_moves:
+            black_points = []
+            white_points = []
+            for move in self.setup_moves:
+                if not _is_valid_move(move.vertex, self.board_size):
+                    raise ValueError(f"Invalid setup move in SGF export: {move.vertex}")
+                if move.vertex.lower() in ("pass", "resign"):
+                    raise ValueError(f"Setup moves cannot be pass or resign: {move.vertex}")
 
+                point = gtp_vertex_to_sgf_point(move.vertex, self.board_size)
+                if point is not None:
+                    if move.color == Color.BLACK:
+                        black_points.append(point)
+                    else:
+                        white_points.append(point)
+
+            if black_points or white_points:
+                root.set_setup_stones(black_points, white_points, [])
+
+        # Add regular moves
+        for move in self.moves:
+            # Since we validate moves during play_game, all moves should be valid
+            if not _is_valid_move(move.vertex, self.board_size):
+                raise ValueError(f"Invalid move found in game record during SGF export: {move.vertex}")
+
+            if move.vertex.lower() == "resign":
+                # Resignation is handled in game result, not as a move
+                continue
+
+            point = gtp_vertex_to_sgf_point(move.vertex, self.board_size)
             color_char = move.color.value[0].lower()
             game.extend_main_sequence()
             node = game.get_last_node()
@@ -440,10 +465,116 @@ def _resolve_score_disagreement(black_score: str, white_score: str) -> tuple[Gam
         return GameResult.UNKNOWN, None, "?"
 
 
+def _is_valid_move(vertex: str, board_size: int) -> bool:
+    """
+    Check if a move vertex is valid.
+    
+    Args:
+        vertex: GTP vertex format like "D4", "pass", or "resign"
+        board_size: Size of the board
+        
+    Returns:
+        True if the move is valid (can be converted to SGF or is pass/resign)
+    """
+    vertex_lower = vertex.lower()
+    if vertex_lower in ("pass", "resign"):
+        return True
+
+    try:
+        gtp_vertex_to_sgf_point(vertex, board_size)
+        return True
+    except ValueError:
+        return False
+
+
+def _get_fixed_handicap_positions(
+    handicap: int,
+    board_size: int,
+) -> list[tuple[int, int]]:
+    """
+    Get fixed handicap stone positions for a given handicap and board size.
+
+    Args:
+        handicap: Number of handicap stones (2-9)
+        board_size: Size of the board
+
+    Returns:
+        List of (row, col) positions in SGF coordinates
+
+    Raises:
+        ValueError: If handicap is invalid for the board size
+    """
+    if handicap < 2 or handicap > 9:
+        raise ValueError(f"Handicap must be between 2 and 9, got {handicap}")
+
+    if board_size < 7:
+        raise ValueError(f"No handicap supported for boards smaller than 7x7")
+
+    if board_size == 7 and handicap > 4:
+        raise ValueError(f"Maximum 4 handicap stones for 7x7 board")
+
+    if board_size % 2 == 0 and handicap > 4:
+        raise ValueError(f"Maximum 4 handicap stones for even-sized boards")
+
+    # Calculate edge distance: 4th line for boards >= 13, 3rd line for smaller
+    edge_dist = 2 if board_size < 13 else 3
+
+    # Corner positions
+    positions = [
+        (edge_dist, edge_dist),  # D4 equivalent
+        (board_size - 1 - edge_dist, board_size - 1 - edge_dist),  # Q16 equivalent
+    ]
+
+    if handicap >= 3:
+        positions.append((edge_dist, board_size - 1 - edge_dist))  # D16 equivalent
+
+    if handicap >= 4:
+        positions.append((board_size - 1 - edge_dist, edge_dist))  # Q4 equivalent
+
+    if handicap >= 5:
+        # Center position (only for odd-sized boards)
+        if board_size % 2 == 1:
+            center = board_size // 2
+            positions.append((center, center))  # K10 equivalent
+        else:
+            raise ValueError(f"Cannot place center stone on even-sized board")
+
+    if handicap >= 6:
+        # Side positions
+        center = board_size // 2
+        positions.extend(
+            [
+                (edge_dist, center),  # D10 equivalent
+                (board_size - 1 - edge_dist, center),  # Q10 equivalent
+            ]
+        )
+
+    if handicap >= 7:
+        # Already have center from handicap 5
+        pass
+
+    if handicap >= 8:
+        # More side positions
+        center = board_size // 2
+        positions.extend(
+            [
+                (center, edge_dist),  # K4 equivalent
+                (center, board_size - 1 - edge_dist),  # K16 equivalent
+            ]
+        )
+
+    if handicap >= 9:
+        # Center stone already added for handicap 5
+        pass
+
+    return positions[:handicap]
+
+
 def _validate_game_parameters(
     board_size: int,
     komi: float,
     max_moves: int | None,
+    handicap_or_startpos: int | list[Move] | None,
 ) -> None:
     """Validate game parameters and raise ValueError if invalid."""
     if not isinstance(board_size, int) or board_size < 1 or board_size > 99:
@@ -455,18 +586,58 @@ def _validate_game_parameters(
     if max_moves is not None and (not isinstance(max_moves, int) or max_moves < 1):
         raise ValueError(f"max_moves must be a positive integer or None, got {max_moves}")
 
+    if handicap_or_startpos is not None:
+        if isinstance(handicap_or_startpos, int):
+            if handicap_or_startpos < 2 or handicap_or_startpos > 9:
+                raise ValueError(f"handicap must be between 2 and 9, got {handicap_or_startpos}")
+        elif isinstance(handicap_or_startpos, list):
+            if not all(isinstance(move, Move) for move in handicap_or_startpos):
+                raise ValueError("startpos must be a list of Move objects")
+        else:
+            raise ValueError("handicap_or_startpos must be int, list[Move], or None")
+
 
 def _setup_bots(
     black_bot: Bot,
     white_bot: Bot,
     board_size: int,
     komi: float,
-) -> None:
-    """Set up both bots for the game."""
+    handicap_or_startpos: int | list[Move] | None = None,
+) -> list[Move]:
+    """
+    Set up both bots for the game.
+
+    Returns:
+        List of setup moves that were placed on the board
+    """
+    setup_moves = []
+
     for bot in [black_bot, white_bot]:
         bot.send_command("clear_board")
         bot.send_command(f"boardsize {board_size}")
         bot.send_command(f"komi {komi}")
+
+    if handicap_or_startpos is not None:
+        if isinstance(handicap_or_startpos, int):
+            # Fixed handicap placement
+            positions = _get_fixed_handicap_positions(handicap_or_startpos, board_size)
+            for row, col in positions:
+                vertex = sgf_point_to_gtp_vertex((row, col), board_size)
+                setup_moves.append(Move(Color.BLACK, vertex))
+                for bot in [black_bot, white_bot]:
+                    bot.send_command(f"play black {vertex}")
+        elif isinstance(handicap_or_startpos, list):
+            # Custom starting position - validate each move
+            for move in handicap_or_startpos:
+                if not _is_valid_move(move.vertex, board_size):
+                    raise ValueError(f"Invalid setup move: {move.vertex}")
+                if move.vertex.lower() in ("pass", "resign"):
+                    raise ValueError(f"Setup moves cannot be pass or resign: {move.vertex}")
+                setup_moves.append(move)
+                for bot in [black_bot, white_bot]:
+                    bot.send_command(f"play {move.color.value} {move.vertex}")
+
+    return setup_moves
 
 
 def _get_bot_score(
@@ -548,6 +719,8 @@ def play_game(
     board_size: int = 19,
     komi: float = 6.5,
     max_moves: int | None = None,
+    color_to_move: Color | None = None,
+    handicap_or_startpos: int | list[Move] | None = None,
 ) -> FinishedGame:
     """
     Play a game between two bots.
@@ -558,19 +731,30 @@ def play_game(
         board_size: Size of the Go board (default 19)
         komi: Komi value for white (default 6.5)
         max_moves: Maximum number of moves (default: board_size^2 * 5)
+        color_to_move: Color to move first (default: Color.BLACK)
+        handicap_or_startpos: Either handicap stones count or starting positions
 
     Returns:
         A FinishedGame object with the game result
     """
-    _validate_game_parameters(board_size, komi, max_moves)
+    _validate_game_parameters(board_size, komi, max_moves, handicap_or_startpos)
 
     if max_moves is None:
         max_moves = board_size * board_size * 5
 
-    _setup_bots(black_bot, white_bot, board_size, komi)
+    setup_moves = _setup_bots(black_bot, white_bot, board_size, komi, handicap_or_startpos)
 
     moves: list[Move] = []
-    current_color = Color.BLACK
+
+    # Determine starting color
+    if color_to_move is not None:
+        current_color = color_to_move
+    elif isinstance(handicap_or_startpos, int) and handicap_or_startpos >= 2:
+        # Traditional handicap: white moves first
+        current_color = Color.WHITE
+    else:
+        # Default: black moves first
+        current_color = Color.BLACK
     consecutive_passes = 0
 
     while consecutive_passes < 2 and len(moves) < max_moves:
@@ -587,7 +771,22 @@ def play_game(
 
             if not vertex:
                 vertex = "pass"
-            elif vertex.lower() == "resign":
+
+            # Validate the move before processing
+            if not _is_valid_move(vertex, board_size):
+                logging.warning(f"Bot {current_bot.name} generated invalid move: {vertex}")
+                return FinishedGame(
+                    black_bot_name=black_bot.name,
+                    white_bot_name=white_bot.name,
+                    board_size=board_size,
+                    komi=komi,
+                    moves=moves,
+                    result=GameResult.ILLEGAL_MOVE,
+                    winner_name=None,
+                    setup_moves=setup_moves
+                )
+
+            if vertex.lower() == "resign":
                 # Handle resignation
                 opposite_color = current_color.opposite()
                 result = GameResult.WHITE_WIN if opposite_color == Color.WHITE else GameResult.BLACK_WIN
@@ -601,7 +800,8 @@ def play_game(
                     moves=moves,
                     result=result,
                     winner_name=winner_name,
-                    score=score
+                    score=score,
+                    setup_moves=setup_moves
                 )
 
         except GTPError as e:
@@ -614,7 +814,8 @@ def play_game(
                 komi=komi,
                 moves=moves,
                 result=GameResult.UNFINISHED,
-                winner_name=None
+                winner_name=None,
+                setup_moves=setup_moves
             )
 
         move = Move(current_color, vertex)
@@ -640,7 +841,8 @@ def play_game(
                     komi=komi,
                     moves=moves,
                     result=result,
-                    winner_name=winner_name
+                    winner_name=winner_name,
+                    setup_moves=setup_moves
                 )
 
         current_color = current_color.opposite()
@@ -654,7 +856,8 @@ def play_game(
             komi=komi,
             moves=moves,
             result=GameResult.UNFINISHED,
-            winner_name=None
+            winner_name=None,
+            setup_moves=setup_moves
         )
 
     # Game ended normally, get scores from both bots
@@ -668,5 +871,6 @@ def play_game(
         moves=moves,
         result=result,
         winner_name=winner_name,
-        score=score
+        score=score,
+        setup_moves=setup_moves
     )
