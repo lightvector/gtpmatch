@@ -722,6 +722,7 @@ def play_game(
     max_moves: int | None = None,
     color_to_move: Color | None = None,
     handicap_or_startpos: int | list[Move] | None = None,
+    verbose: bool = False,
 ) -> FinishedGame:
     """
     Play a game between two bots.
@@ -769,6 +770,9 @@ def play_game(
         try:
             response = current_bot.send_command(f"genmove {current_color.value}")
             vertex = response.strip()
+
+            if verbose:
+                print(f"Move {len(moves)+1}: {current_color} {vertex}")
 
             if not vertex:
                 vertex = "pass"
