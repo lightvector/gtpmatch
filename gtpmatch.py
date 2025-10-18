@@ -343,6 +343,8 @@ class FinishedGame:
     winner_name: str | None
     score: str | None = None  # e.g., "B+3.5", "W+R", "B+", etc.
     setup_moves: list[Move] = None  # Handicap or starting position moves
+    rules: str | None = None
+    game_name: str | None = None
 
     def _create_sgf_game(self) -> 'sgfmill.sgf.Sgf_game':
         """Create and populate an SGF game object."""
@@ -354,6 +356,11 @@ class FinishedGame:
         root.set("PW", self.white_bot_name)
         root.set("KM", str(self.komi))
         root.set("SZ", self.board_size)
+
+        if self.rules is not None:
+            root.set("RU",self.rules)
+        if self.game_name is not None:
+            root.set("GN",self.game_name)
 
         # Set result
         if self.score:
