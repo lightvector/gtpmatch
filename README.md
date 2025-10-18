@@ -1,6 +1,6 @@
 # gtpmatch
 
-Lightweight Python library for running games between Go bots using GTP (Go Text Protocol).
+Lightweight pure python3 library for running games between Go bots using GTP (Go Text Protocol).
 
 (A decent chunk of this library was implemented or edited by Claude Code, with a lot of manual editing and work as well)
 
