@@ -17,29 +17,26 @@ from typing import Iterator
 BOT_QUIT_TIMEOUT = 5  # seconds
 BOT_TERMINATE_TIMEOUT = 5  # seconds
 
-try:
-    import sgfmill.sgf
-    import sgfmill.sgf_moves
-except ImportError:
-    sgfmill = None
+import sgfmill.sgf
+import sgfmill.sgf_moves
 
 # GTP coordinate system: letters A-Z (skipping I), then AA, AB, AC, etc.
 GTP_LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
 
 
-def gtp_vertex_to_sgf_point(
+def gtp_vertex_to_sgfmill_point(
     vertex: str,
     board_size: int,
 ) -> tuple[int, int] | None:
     """
-    Convert GTP vertex format to SGF point format.
+    Convert GTP vertex format to sgfmill point format.
 
     Args:
         vertex: GTP vertex like "D4", "AA10", or "pass"
         board_size: Size of the board
 
     Returns:
-        SGF point as (row, col) tuple, or None for pass
+        sgfmill point as (row, col) tuple, or None for pass
 
     Raises:
         ValueError: If vertex format is invalid or outside board bounds
@@ -75,9 +72,9 @@ def gtp_vertex_to_sgf_point(
     # Convert column letters to column index
     col = _parse_gtp_columns(alpha_part)
 
-    # Convert to SGF coordinates (0-based, row 0 is top, unlike GTP where 1 is the bottom)
-    # Unfortunately, sgfmill's coordnates are ALSO flipped, so if we're using sgfmill for serialization,
-    # then 0 is the bottom. So we don't invert here, we just convert to zero-indexed.
+    # Convert to sgfmill coordinates (0-based, row 0 is BOTTOM, unlike GTP where 1 is the bottom)
+    # Yes, sgfmill's coordinates are vertically flippped compared to sgf file format where e.g. "aa" is the TOP.
+    # So we don't invert here, we just convert to zero-indexed.
     sgf_row = row_num - 1
     sgf_col = col
 
@@ -104,16 +101,47 @@ def _parse_gtp_columns(col_letters: str) -> int:
     else:
         raise ValueError(f"GTP column format not supported (max 2 letters): {col_letters}")
 
-
 def sgf_point_to_gtp_vertex(
-    point: tuple[int, int] | None,
+    point: str,
     board_size: int,
 ) -> str:
     """
     Convert SGF point format to GTP vertex format.
 
     Args:
-        point: SGF point as (row, col) tuple, or None for pass
+        point: SGF point as sgf raw str e.g. "qr", "ac", etc.
+        board_size: Size of the board
+
+    Returns:
+        GTP vertex like "D4", "AA10", or "pass"
+
+    Raises:
+        ValueError: If point is outside board bounds
+    """
+    if point == "" or point == "tt":
+        return "pass"
+
+    col = ord(point[0]) - ord('a')
+    row = ord(point[1]) - ord('a')
+    move_coord = (row, col)
+
+    if not (0 <= row < board_size and 0 <= col < board_size):
+        raise ValueError(f"SGF point {point} is outside {board_size}x{board_size} board bounds")
+
+    gtp_row = board_size-row
+    col_letters = _format_gtp_columns(col)
+
+    return f"{col_letters}{gtp_row}"
+
+def sgfmill_point_to_gtp_vertex(
+    point: tuple[int, int] | None,
+    board_size: int,
+) -> str:
+    """
+    Convert sgfmill point format to GTP vertex format.
+
+    Args:
+        point: sgfmill point as (row, col) tuple, or None for pass
         board_size: Size of the board
 
     Returns:
@@ -127,12 +155,11 @@ def sgf_point_to_gtp_vertex(
 
     sgf_row, sgf_col = point
 
-    # Validate coordinates
     if not (0 <= sgf_row < board_size and 0 <= sgf_col < board_size):
-        raise ValueError(f"SGF point {point} is outside {board_size}x{board_size} board bounds")
+        raise ValueError(f"sgfmill point {point} is outside {board_size}x{board_size} board bounds")
 
     # Convert to GTP coordinates
-    # See gtp_vertex_to_sgf_point comment about sgf_row. Avoid flip here similarly.
+    # See gtp_vertex_to_sgfmill_point comment about sgf_row. Avoid flip here similarly.
     gtp_row = sgf_row + 1
     col_letters = _format_gtp_columns(sgf_col)
 
@@ -319,9 +346,6 @@ class FinishedGame:
 
     def _create_sgf_game(self) -> 'sgfmill.sgf.Sgf_game':
         """Create and populate an SGF game object."""
-        if sgfmill is None:
-            raise ImportError("sgfmill library is required to generate SGF")
-
         game = sgfmill.sgf.Sgf_game(size=self.board_size)
 
         # Set game properties
@@ -354,7 +378,7 @@ class FinishedGame:
                 if move.vertex.lower() in ("pass", "resign"):
                     raise ValueError(f"Setup moves cannot be pass or resign: {move.vertex}")
 
-                point = gtp_vertex_to_sgf_point(move.vertex, self.board_size)
+                point = gtp_vertex_to_sgfmill_point(move.vertex, self.board_size)
                 if point is not None:
                     if move.color == Color.BLACK:
                         black_points.append(point)
@@ -374,7 +398,7 @@ class FinishedGame:
                 # Resignation is handled in game result, not as a move
                 continue
 
-            point = gtp_vertex_to_sgf_point(move.vertex, self.board_size)
+            point = gtp_vertex_to_sgfmill_point(move.vertex, self.board_size)
             color_char = move.color.value[0].lower()
             game.extend_main_sequence()
             node = game.get_last_node()
@@ -458,7 +482,7 @@ def _resolve_score_disagreement(black_score: str, white_score: str) -> tuple[Gam
             return GameResult.BLACK_WIN, "black", "B+"
         elif black_winner == "white":
             return GameResult.WHITE_WIN, "white", "W+"
-        else:  # Draw
+        else:
             return GameResult.DRAW, None, "0"
     else:
         # Different winners
@@ -482,7 +506,7 @@ def _is_valid_move(vertex: str, board_size: int) -> bool:
         return True
 
     try:
-        gtp_vertex_to_sgf_point(vertex, board_size)
+        gtp_vertex_to_sgfmill_point(vertex, board_size)
         return True
     except ValueError:
         return False
@@ -623,7 +647,7 @@ def _setup_bots(
             # Fixed handicap placement
             positions = _get_fixed_handicap_positions(handicap_or_startpos, board_size)
             for row, col in positions:
-                vertex = sgf_point_to_gtp_vertex((row, col), board_size)
+                vertex = sgfmill_point_to_gtp_vertex((row, col), board_size)
                 setup_moves.append(Move(Color.BLACK, vertex))
                 for bot in [black_bot, white_bot]:
                     bot.send_command(f"play black {vertex}")
