@@ -4,6 +4,8 @@ Lightweight Python library for running games between Go bots using GTP (Go Text 
 
 (A decent chunk of this library was implemented or edited by Claude Code, with a lot of manual editing and work as well)
 
+This library depends on sgfmill (`pip install sgfmill`) https://github.com/mattheww/sgfmill for sgf file handling, but doesn't depend on anything else.
+
 ## Main Files
 
 * **gtpmatch.py** is the core library for launching bots and playing games and saving the sgf
