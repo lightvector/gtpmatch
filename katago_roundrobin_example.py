@@ -83,16 +83,20 @@ def main():
     config = Path("./gtp.cfg")
     exe = Path("./katago")
 
-    player_commands["mybot"] = get_katago_command(
-        name="mybot", exe=exe, config=config, model=model, logs_dir=logs_dir
-    )
-    player_commands["myotherbot"] = get_katago_command(
-        name="myotherbot", exe=exe, config=config, model=model, logs_dir=logs_dir, override="numSearchThreads=8,maxVisits=12345"
-    )
+    # Example:
+    # player_commands["mybot"] = get_katago_command(
+    #     name="mybot", exe=exe, config=config, model=model, logs_dir=logs_dir
+    # )
+    # player_commands["myotherbot"] = get_katago_command(
+    #     name="myotherbot", exe=exe, config=config, model=model, logs_dir=logs_dir, override="numSearchThreads=8,maxVisits=12345"
+    # )
 
     ###################################################################################
     # END OF CONFIGURATION
     ###################################################################################
+
+    if len(player_commands) == 0:
+        raise AssertionError("No players configured! Try editing this script however you like first, to add players to run and adjust settings")
 
     # Create output directories
     sgfs_dir.mkdir(parents=True, exist_ok=True)
