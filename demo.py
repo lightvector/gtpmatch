@@ -5,6 +5,7 @@ Demo script showcasing the gtpmatch module features with some example code using
 
 import gtpmatch
 
+
 def main():
     print("gtpmatch demo - Go bot matching library")
     print("=" * 50)
@@ -55,8 +56,9 @@ def main():
 
             # Play handicap game - black gets 3 stones, white moves first
             handicap_game = gtpmatch.play_game(
-                black_bot, white_bot, 
-                board_size=9, 
+                black_bot,
+                white_bot,
+                board_size=9,
                 komi=0.5,  # Reduced komi for handicap game
                 max_moves=15,
                 handicap_or_startpos=3
@@ -104,7 +106,8 @@ def main():
 
             # Play game with custom setup, white to move first
             custom_game = gtpmatch.play_game(
-                black_bot, white_bot,
+                black_bot,
+                white_bot,
                 board_size=9,
                 komi=6.5,
                 max_moves=12,
@@ -134,6 +137,7 @@ def main():
         print(f"Custom game failed: {e}")
 
     print("\n✅ Demo completed! Check the generated SGF files.")
+
 
 if __name__ == "__main__":
     main()
