@@ -45,7 +45,7 @@ def main():
         print(f"Demo game failed: {e}")
 
     # Demo handicap game
-    print("\n🌟 Playing handicap game (9x9, 3-stone handicap):")
+    print("\nPlaying handicap game (9x9, 3-stone handicap):")
     try:
         with gtpmatch.launch_bot("GnuGo-Black", "gnugo --mode gtp --quiet") as black_bot, \
              gtpmatch.launch_bot("GnuGo-White", "gnugo --mode gtp --quiet") as white_bot:
@@ -87,7 +87,7 @@ def main():
         print(f"Handicap game failed: {e}")
 
     # Demo custom starting position
-    print("\n🎨 Playing game with custom starting position:")
+    print("\nPlaying game with custom starting position:")
     try:
         with gtpmatch.launch_bot("GnuGo-Black", "gnugo --mode gtp --quiet") as black_bot, \
              gtpmatch.launch_bot("GnuGo-White", "gnugo --mode gtp --quiet") as white_bot:
@@ -136,7 +136,7 @@ def main():
     except Exception as e:
         print(f"Custom game failed: {e}")
 
-    print("\n✅ Demo completed! Check the generated SGF files.")
+    print("\nDemo completed! Check the generated SGF files.")
 
 
 if __name__ == "__main__":

@@ -22,6 +22,10 @@ import gtpmatch
 with gtpmatch.launch_bot("Black", "gnugo --mode gtp --quiet") as black_bot, \
      gtpmatch.launch_bot("White", "gnugo --mode gtp --quiet") as white_bot:
 
+    # Send any GTP commands to configure rules, time controls, etc
+    black_bot.send_command("time_settings 0 1 1")
+    white_bot.send_command("time_settings 0 1 1")
+
     # For handicap or custom starting positions, pass `handicap_or_startpos` into here. See demo.py for more examples.
     game = gtpmatch.play_game(black_bot, white_bot, board_size=19, komi=6.5)
 
