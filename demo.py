@@ -4,9 +4,12 @@ Demo script showcasing the gtpmatch module features with some example code using
 """
 
 import gtpmatch
+import os
 
 
 def main():
+    # Create tmp directory for game files
+    os.makedirs("tmp", exist_ok=True)
     print("gtpmatch demo - Go bot matching library")
     print("=" * 50)
 
@@ -36,10 +39,8 @@ def main():
             # Demo SGF export
             sgf_content = game.get_sgf()
             print(f"\nSGF preview: {sgf_content}...")
-
-            # Save to file
-            game.save_sgf("demo_game.sgf")
-            print("Game saved to demo_game.sgf")
+            game.save_sgf("tmp/demo_game.sgf")
+            print("Game saved to tmp/demo_game.sgf")
 
     except Exception as e:
         print(f"Demo game failed: {e}")
@@ -80,8 +81,8 @@ def main():
                 print(f"  Move {i}: {move.color.value} {move.vertex}")
 
             # Save handicap game
-            handicap_game.save_sgf("demo_handicap_game.sgf")
-            print("Handicap game saved to demo_handicap_game.sgf")
+            handicap_game.save_sgf("tmp/demo_handicap_game.sgf")
+            print("Handicap game saved to tmp/demo_handicap_game.sgf")
 
     except Exception as e:
         print(f"Handicap game failed: {e}")
@@ -130,13 +131,13 @@ def main():
                 print(f"  Move {i}: {move.color.value} {move.vertex}")
 
             # Save custom game
-            custom_game.save_sgf("demo_custom_game.sgf")
-            print("Custom game saved to demo_custom_game.sgf")
+            custom_game.save_sgf("tmp/demo_custom_game.sgf")
+            print("Custom game saved to tmp/demo_custom_game.sgf")
 
     except Exception as e:
         print(f"Custom game failed: {e}")
 
-    print("\nDemo completed! Check the generated SGF files.")
+    print("\nDemo completed! Check the generated SGF files in tmp/.")
 
 
 if __name__ == "__main__":
